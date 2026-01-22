@@ -1,0 +1,50 @@
+name: Run topcharts new paid
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-topcharts-new-paid:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Allow this runner IP to MongoDB + Redis (fw-controller)
+        shell: bash
+        env:
+          FW_TOKEN: ${{ secrets.FW_TOKEN }}
+        run: |
+          curl -sS -X POST "http://75.119.156.81:8787/allow?service=all" \
+            -H "Authorization: Bearer $FW_TOKEN"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Checkout as-explorer (private)
+        uses: actions/checkout@v4
+        with:
+          repository: bakkaliomar500/as-explorer
+          token: ${{ secrets.GH_PAT }}
+          ref: main
+          path: as-explorer
+          fetch-depth: 1
+
+      - name: Install & run topcharts:new_paid
+        working-directory: as-explorer
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          npm ci || npm install
+          npm run build --if-present
+          npm run seed:topcharts:new_paid
+
+      - name: Remove this runner IP from MongoDB + Redis allowlist (fw-controller)
+        if: always()
+        shell: bash
+        env:
+          FW_TOKEN: ${{ secrets.FW_TOKEN }}
+        run: |
+          curl -sS -X POST "http://75.119.156.81:8787/deny?service=all" \
+            -H "Authorization: Bearer $FW_TOKEN" || true
